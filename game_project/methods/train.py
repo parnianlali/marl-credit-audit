@@ -198,6 +198,10 @@ Returns a validated float64 copy.
             "greedy_action": greedy,
             "mixer_grad": mgrad,
             "train_loss": full_batch_weighted_mse(),
+            # Current optimizer lr -- read off opt directly, not sched,
+            # since sched.step() already mutates opt.param_groups in place;
+            # this is the lr that will be used for this iteration's update.
+            "lr": opt.param_groups[0]["lr"],
         })
 
     # run log only and only at the first step of the game and log every steps.

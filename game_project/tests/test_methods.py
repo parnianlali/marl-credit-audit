@@ -421,3 +421,35 @@ def test_normalized_error_nan_on_zero_truth():
     assert math.isnan(result["normalized_l2"])
     assert math.isclose(result["raw_l2"], math.sqrt(14.0), rel_tol=1e-12)
     assert math.isclose(result["sup"], 3.0, rel_tol=1e-12)
+
+
+# --------------------------------------------------------------------------
+# 14. added after Task 7 at the user's request (not in the original Task 6
+#     table): train() now logs "lr" at every history step. Checked against
+#     PyTorch's own documented closed form for CosineAnnealingLR with
+#     eta_min=0, lr_t = base_lr * (1 + cos(pi * t / T_max)) / 2 -- an
+#     independent oracle (it's the scheduler's published formula, not
+#     anything read off our trainer's output), not just "it went down."
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("ModelClass", [VDN, QMIX])
+def test_lr_schedule_logged_matches_cosine_closed_form(ModelClass):
+    n, n_actions = 3, 3
+    payoff = make_game(n, n_actions, lam=0.0, seed=0)["payoff"]
+    train_weights = joint_from_product(uniform(n, n_actions))
+    steps, lr0, log_every = 200, 0.1, 20
+
+    _, history = _train(ModelClass, payoff, train_weights, steps, lr0, seed=0,
+                         log_every=log_every)
+
+    logged_steps = [h["step"] for h in history]
+    logged_lrs = [h["lr"] for h in history]
+
+    expected = [lr0 * (1.0 + math.cos(math.pi * t / steps)) / 2.0 for t in logged_steps]
+    np.testing.assert_allclose(logged_lrs, expected, atol=1e-12, rtol=1e-9)
+
+    # Monotonically non-increasing (cosine from 0 to T_max is), base lr at
+    # step 0, and annealed to ~0 by the final logged step.
+    assert logged_lrs[0] == pytest.approx(lr0)
+    assert all(a >= b - 1e-12 for a, b in zip(logged_lrs, logged_lrs[1:]))
+    assert logged_lrs[-1] == pytest.approx(0.0, abs=1e-12)

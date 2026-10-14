@@ -56,6 +56,7 @@ TAU_FIT = {"VDN": 1e-8, "QMIX": 1e-3}
 
 CSV_PATH = "results/week2_lambda0.csv"
 PNG_PATH = "results/week2_lambda0.png"
+FIT_PNG_PATH = "results/week2_lambda0_fit.png"
 
 _DEGENERATE_ATOL = 1e-9
 
@@ -133,14 +134,17 @@ def run_pilot():
 
 def run_reporting():
     """n=3, |A|=3, lambda=0, seeds 0-9. Train once per seed per method;
-    extract under both baselines. Returns the step-curves (for the figure)
-    and the final-step rows (for the CSV)."""
+    extract under both baselines. Returns the credit-error step-curves (for
+    the credit figure), the fit-error step-curves (for the fit figure --
+    baseline-independent, since training never sees a baseline), and the
+    final-step rows (for the CSV)."""
     B_fixed = fixed_action(N, N_ACTIONS)
     B_uniform = uniform(N, N_ACTIONS)
     baselines = {"fixed": B_fixed, "uniform": B_uniform}
     w_shapley = shapley_weights(N)
 
     curves = {}   # (method, baseline) -> list over log steps of per-seed normalized credit error
+    fit_curves = {}  # method -> (steps, (n_seeds, n_steps) array of fit rmse
     csv_rows = []
 
     for method_name, ModelClass in [("VDN", VDN), ("QMIX", QMIX)]:
@@ -149,10 +153,15 @@ def run_reporting():
             curves[(method_name, bname)] = None  # filled per-seed below, shape (n_steps, n_seeds)
 
         per_baseline_step_errors = {bname: [] for bname in baselines}
+        per_seed_fit_errors = []  # one list of per-step rmse per seed
 
         for seed in SEEDS:
             payoff, history = _run(ModelClass, seed, cfg["steps"], cfg["lr"], cfg["log_every"])
             steps = [h["step"] for h in history]
+
+            per_seed_fit_errors.append(
+                [fit_error(h["q_tot_tensor"], payoff)["rmse"] for h in history]
+            )
 
             for bname, B in baselines.items():
                 v_true = coalition_values(payoff, B)
@@ -198,7 +207,9 @@ def run_reporting():
             arr = np.array(per_baseline_step_errors[bname])  # (n_seeds, n_steps)
             curves[(method_name, bname)] = (curves_steps, arr)
 
-    return curves, csv_rows
+        fit_curves[method_name] = (curves_steps, np.array(per_seed_fit_errors))
+
+    return curves, fit_curves, csv_rows
 
 
 def write_csv(csv_rows):
@@ -245,6 +256,45 @@ def write_plot(curves):
     print("wrote", PNG_PATH)
 
 
+def write_fit_plot(fit_curves):
+    """Fit error (rmse, Q_tot vs the true payoff) vs training step, one line
+    per method -- baseline-independent, since training never sees a
+    baseline. This is the quantity F3's bound runs on, so it's the direct
+    view of why VDN's and QMIX's credit-error curves sit so far apart:
+    whatever gap shows up here propagates into credit error almost
+    unchanged (<= a factor of 2)."""
+    fig, ax = plt.subplots(figsize=(7, 4.5))
+    styles = {
+        "VDN": dict(color="C0", marker="o"),
+        "QMIX": dict(color="C1", marker="s"),
+    }
+    for method_name, (steps, arr) in fit_curves.items():
+        means, cis = [], []
+        for col in range(arr.shape[1]):
+            m, ci = _mean_ci95(arr[:, col])
+            means.append(m)
+            cis.append(ci)
+        means = np.array(means)
+        cis = np.array(cis)
+        style = styles[method_name]
+        ax.plot(steps, means, label=method_name, **style)
+        ax.fill_between(steps, means - cis, means + cis, alpha=0.15, color=style["color"])
+
+    for method_name, tau in TAU_FIT.items():
+        ax.axhline(tau, color=styles[method_name]["color"], linestyle=":", linewidth=1,
+                    label=f"{method_name} tau_fit={tau:.0e}")
+
+    ax.set_yscale("log")
+    ax.set_xlabel("training step")
+    ax.set_ylabel("fit RMSE (Q_tot vs true payoff)")
+    ax.set_title("Week 2: lambda=0 fit error (n=3, |A|=3, 10 seeds)")
+    ax.legend(fontsize=8)
+    ax.grid(alpha=0.3, which="both")
+    fig.tight_layout()
+    fig.savefig(FIT_PNG_PATH, dpi=150)
+    print("wrote", FIT_PNG_PATH)
+
+
 def gate_verdict(csv_rows):
     """D2 applied to the reporting run's numbers."""
     print("\n=== D2 gate verdict ===")
@@ -287,9 +337,10 @@ def gate_verdict(csv_rows):
 
 def main():
     run_pilot()
-    curves, csv_rows = run_reporting()
+    curves, fit_curves, csv_rows = run_reporting()
     write_csv(csv_rows)
     write_plot(curves)
+    write_fit_plot(fit_curves)
     gate_verdict(csv_rows)
 
 

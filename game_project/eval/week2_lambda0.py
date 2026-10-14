@@ -87,6 +87,20 @@ def _nanmean_ci95(values):
     return mean, ci, n_dropped
 
 
+## Note on the credit-error figure's band (write_plot, below): a first
+## attempt computed the CI in log10 space (geometric mean +/- log-space CI)
+## instead of linear mean +/- CI, to fix the linear band running to the
+## bottom of a log-scale axis. That made it worse, not better: at lambda=0
+## several VDN seeds recover credit to *exactly* 0.0 (perfect recovery at
+## machine precision -- confirmed in results/week2_lambda0.csv), mixed with
+## other seeds at ~1e-16. log10(0) is undefined, so flooring those exact
+## zeros at any epsilon manufactures an arbitrary, enormous fake spread in
+## log space (the epsilon choice alone produced a 10^-216-to-10^40 y-axis).
+## Parametric statistics -- linear or log -- don't fit data with legitimate
+## exact zeros mixed with near-zero floats. write_plot uses the per-seed
+## lines + median instead, which has no such failure mode.
+
+
 def _run(ModelClass, seed, steps, lr, log_every):
     game = make_game(N, N_ACTIONS, LAM, seed)
     payoff = game["payoff"]
@@ -216,6 +230,18 @@ def write_csv(csv_rows):
 
 
 def write_plot(curves):
+    """Per-seed lines (thin, low alpha) plus the per-step median (bold) --
+    not a parametric mean +/- CI band. See the note above this function's
+    old band helper: at lambda=0 several VDN seeds hit exactly 0.0 credit
+    error, mixed with others at ~1e-16, and neither a linear nor a log10
+    mean+CI handles that mix (linear collapses to the axis floor; log
+    explodes once the zeros are floored). The median has neither failure
+    mode, and keeping the raw per-seed lines visible (rather than
+    replacing them with any single-number summary) means no spread
+    information is hidden behind a statistic that doesn't fit this data.
+    matplotlib silently omits non-positive points on a log axis, so a
+    seed's exact-0.0 steps just don't plot -- the correct behavior here,
+    not a bug."""
     fig, ax = plt.subplots(figsize=(7, 4.5))
     styles = {
         ("VDN", "fixed"): dict(color="C0", marker="o", linestyle="-"),
@@ -224,22 +250,20 @@ def write_plot(curves):
         ("QMIX", "uniform"): dict(color="C1", marker="s", linestyle="--"),
     }
     for (method_name, bname), (steps, arr) in curves.items():
-        means, cis = [], []
-        for col in range(arr.shape[1]):
-            m, ci, _ = _nanmean_ci95(arr[:, col])
-            means.append(m)
-            cis.append(ci)
-        means = np.array(means)
-        cis = np.array(cis)
         style = styles[(method_name, bname)]
-        ax.plot(steps, means, label=f"{method_name} ({bname})", **style)
-        ax.fill_between(steps, means - cis, means + cis, alpha=0.15, color=style["color"])
+        for row in arr:
+            ax.plot(steps, row, color=style["color"], linestyle=style["linestyle"],
+                    linewidth=0.6, alpha=0.25, zorder=1)
+        median = np.nanmedian(arr, axis=0)
+        ax.plot(steps, median, label=f"{method_name} ({bname}) median",
+                linewidth=2, zorder=2, **style)
 
     ax.set_yscale("log")
     ax.set_xlabel("training step")
     ax.set_ylabel("normalized credit error (L2, primary extraction)")
-    ax.set_title("Week 2: lambda=0 credit recovery (n=3, |A|=3, 10 seeds)")
-    ax.legend(fontsize=8)
+    ax.set_title("Week 2: lambda=0 credit recovery (n=3, |A|=3, 10 seeds)\n"
+                  "bold = per-step median, thin = individual seeds")
+    ax.legend(fontsize=7, loc="upper right")
     ax.grid(alpha=0.3, which="both")
     fig.tight_layout()
     fig.savefig(PNG_PATH, dpi=150)

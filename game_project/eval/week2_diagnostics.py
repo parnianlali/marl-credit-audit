@@ -72,22 +72,22 @@ def run_fit_curves():
 
 
 def write_fit_plot(fit_curves):
+    """Per-seed lines (thin, low alpha) plus the per-step median (bold) --
+    same reason as eval/week2_lambda0.py:write_plot's own note: fit error
+    can hit exact 0.0 for some VDN seeds, and neither a linear nor a log
+    mean +/- CI band represents that faithfully on a log axis. The median
+    has no such failure mode."""
     fig, ax = plt.subplots(figsize=(7, 4.5))
     styles = {
         "VDN": dict(color="C0", marker="o"),
         "QMIX": dict(color="C1", marker="s"),
     }
     for method_name, (steps, arr) in fit_curves.items():
-        means, cis = [], []
-        for col in range(arr.shape[1]):
-            m, ci = _mean_ci95(arr[:, col])
-            means.append(m)
-            cis.append(ci)
-        means = np.array(means)
-        cis = np.array(cis)
         style = styles[method_name]
-        ax.plot(steps, means, label=method_name, **style)
-        ax.fill_between(steps, means - cis, means + cis, alpha=0.15, color=style["color"])
+        for row in arr:
+            ax.plot(steps, row, color=style["color"], linewidth=0.6, alpha=0.25, zorder=1)
+        median = np.nanmedian(arr, axis=0)
+        ax.plot(steps, median, label=f"{method_name} median", linewidth=2, zorder=2, **style)
 
     for method_name, tau in TAU_FIT.items():
         ax.axhline(tau, color=styles[method_name]["color"], linestyle=":", linewidth=1,
@@ -96,7 +96,8 @@ def write_fit_plot(fit_curves):
     ax.set_yscale("log")
     ax.set_xlabel("training step")
     ax.set_ylabel("fit RMSE (Q_tot vs true payoff)")
-    ax.set_title("Week 2: lambda=0 fit error (n=3, |A|=3, 10 seeds)")
+    ax.set_title("Week 2: lambda=0 fit error (n=3, |A|=3, 10 seeds)\n"
+                  "bold = per-step median, thin = individual seeds")
     ax.legend(fontsize=8)
     ax.grid(alpha=0.3, which="both")
     fig.tight_layout()
@@ -118,7 +119,7 @@ def run_qmix_longrun():
         history = train(
             model, payoff, weights=train_weights, mode="full_batch",
             steps=QMIX_LONGRUN_STEPS, lr=QMIX_LONGRUN_LR, sigma=0.0,
-            data_seed=data_seed, log_every=QMIX_LONGRUN_LOG_EVERY,
+            data_seed=seed_to_int(data_seed), log_every=QMIX_LONGRUN_LOG_EVERY,
         )
         steps_logged = [h["step"] for h in history]
         per_seed_fit.append([fit_error(h["q_tot_tensor"], payoff)["rmse"] for h in history])
@@ -136,24 +137,23 @@ def run_qmix_longrun():
 
 
 def write_qmix_longrun_plot(steps, fit_arr, lr_arr):
+    """Top panel: per-seed lines + per-step median, same rationale (and
+    same failure mode being avoided) as write_fit_plot above."""
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(7, 7), sharex=True)
 
-    means, cis = [], []
-    for col in range(fit_arr.shape[1]):
-        m, ci = _mean_ci95(fit_arr[:, col])
-        means.append(m)
-        cis.append(ci)
-    means = np.array(means)
-    cis = np.array(cis)
-    ax1.plot(steps, means, color="C1", marker="s", markersize=3, label="QMIX fit rmse")
-    ax1.fill_between(steps, means - cis, means + cis, alpha=0.15, color="C1")
+    for row in fit_arr:
+        ax1.plot(steps, row, color="C1", linewidth=0.6, alpha=0.25, zorder=1)
+    median = np.nanmedian(fit_arr, axis=0)
+    ax1.plot(steps, median, color="C1", marker="s", markersize=3,
+              label="QMIX fit rmse (median)", zorder=2)
     ax1.axhline(TAU_FIT["QMIX"], color="C1", linestyle=":", linewidth=1,
                 label=f"tau_fit={TAU_FIT['QMIX']:.0e}")
     ax1.axvline(20000, color="gray", linestyle="--", linewidth=1,
                 label="Task 7's 20000-step budget")
     ax1.set_yscale("log")
     ax1.set_ylabel("fit RMSE")
-    ax1.set_title(f"QMIX at lambda=0, {QMIX_LONGRUN_STEPS} steps (pilot seeds 100-104)")
+    ax1.set_title(f"QMIX at lambda=0, {QMIX_LONGRUN_STEPS} steps (pilot seeds 100-104)\n"
+                  "bold = per-step median, thin = individual seeds")
     ax1.legend(fontsize=8)
     ax1.grid(alpha=0.3, which="both")
 

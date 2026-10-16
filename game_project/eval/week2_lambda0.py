@@ -109,7 +109,7 @@ def _run(ModelClass, seed, steps, lr, log_every):
     model = ModelClass(N, N_ACTIONS, seed_to_int(init_seed))
     history = train(
         model, payoff, weights=train_weights, mode="full_batch",
-        steps=steps, lr=lr, sigma=0.0, data_seed=data_seed, log_every=log_every,
+        steps=steps, lr=lr, sigma=0.0, data_seed=seed_to_int(data_seed), log_every=log_every,
     )
     return payoff, history
 

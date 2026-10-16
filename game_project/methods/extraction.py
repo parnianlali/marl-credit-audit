@@ -61,8 +61,8 @@ def extract_C(snapshot, B):
 def extract_D(snapshot, B, weights):
     """Semivalue on the learned Q_tot: semivalue(coalition_values(Q_tot, B), weights).
 
-    `weights` is required -- which semivalue (Shapley/Banzhaf/LOO) is not
-    pre-registered anywhere, so there is no default to pick silently.
+    `weights` is required. Pre-registered: Shapley is primary for the gate
+    and plots; phi_true must always use the same weights.
     """
     q_tables = snapshot["q_tables"]
     n, n_actions = q_tables.shape

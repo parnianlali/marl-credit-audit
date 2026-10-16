@@ -134,20 +134,35 @@ def seed_to_int(seed_sequence):
     return int(seed_sequence.generate_state(1)[0])
 
 def train(model, payoff, *, weights, mode, steps, lr, sigma, data_seed, log_every):
-    """Check that the joint-action training weights are a valid probability
-distribution.
+    """Train `model` (VDN or QMIX) so its q_tot matches `payoff` under
+`weights`, with Adam + cosine-decay-to-zero (D4), for `steps` steps.
 
-The weights must have one entry for every possible joint action, be
-non-negative, finite, and sum to 1.
+Parameters:
+model : VDN or QMIX instance, with the shared q_tables/q_tot/q_tot_tensor/
+    greedy_action/mixer_grad contract.
+payoff : ndarray, shape (n_actions,)*n -- the ground-truth game.
+weights : ndarray, shape (n_actions,)*n -- a joint-action distribution
+    (validated by check_joint_weights); what "full_batch" weights its MSE
+    by, and what "sampled" draws joint actions from.
+mode : "full_batch" -- exact weighted MSE over every joint action, every
+    step (data_seed unused). "sampled" -- one joint action drawn from
+    `weights` per step, trained on that action's reward + N(0, sigma^2)
+    noise (games.generator.sample_reward), using a np.random.Generator
+    seeded by `data_seed` (an int -- pass seed_to_int(data_seed), not a
+    bare SeedSequence, so "sampled" draws the same stream here as in
+    tests/test_methods.py).
+steps, lr : optimizer step count and initial learning rate. The scheduler
+    is torch.optim.lr_scheduler.CosineAnnealingLR(T_max=steps, eta_min=0.0).
+log_every : log a history entry at step 0, every `log_every` steps, and the
+    final step.
 
-In our current setup (D3), these weights are uniform, so every joint
-action is trained equally.
-
-Full support is required by default because later credit extraction
-evaluates Q_tot for every joint action. A zero-weight action would
-therefore never be trained in full-batch mode.
-
-Returns a validated float64 copy.
+Returns:
+history : list of dicts, one per logged step, with keys "step", "q_tables",
+    "q_tot_tensor", "greedy_action", "mixer_grad", "train_loss" (the
+    full-batch weighted MSE, computed even in "sampled" mode, so fit error
+    is always comparable across both modes), and "lr" (the optimizer's
+    current learning rate, read off `opt.param_groups`, not the scheduler,
+    since `sched.step()` already mutated it in place by log time).
 """
     # Point to the phase1-week2-D3
     if mode not in ("full_batch", "sampled"):

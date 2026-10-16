@@ -84,3 +84,32 @@ def fixed_default(dist):
     n, n_actions = dist.shape
     B = np.array(dist, dtype=float)  # np.array copies by default
     return check_baseline(B, n, n_actions)
+
+
+def policy_marginal(q_tables, rule, param):
+    """Policy-marginal baseline (D5, docs/decisions.md).
+
+        B_i = (1 - epsilon) * delta_{argmax_a q_tables[i, a]} + epsilon * uniform
+    """
+    if rule != "epsilon_greedy":
+        raise ValueError(
+            "rule %r is not implemented; D5 (docs/decisions.md) decided "
+            "epsilon_greedy only." % (rule,)
+        )
+
+    q_tables = np.asarray(q_tables)
+    if q_tables.ndim != 2:
+        raise ValueError(
+            "q_tables must be 2-D of shape (n_agents, n_actions), got ndim "
+            "%d with shape %s." % (q_tables.ndim, q_tables.shape)
+        )
+    n, n_actions = q_tables.shape
+
+    epsilon = param
+    if not (0.0 <= epsilon <= 1.0):
+        raise ValueError("param (epsilon) must be in [0, 1], got %r" % (epsilon,))
+
+    greedy = np.argmax(q_tables, axis=1)
+    B = np.full((n, n_actions), epsilon / n_actions)
+    B[np.arange(n), greedy] += (1.0 - epsilon)
+    return fixed_default(B)

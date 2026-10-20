@@ -44,7 +44,9 @@ TRAIN_CONFIG = {
     "QMIX": {"steps": 20000, "lr": 0.1, "log_every": 1000},
 }
 
-# D2(a): tau_fit, set above each method's pilot floor (never from 0-9 itself).
+# D2(a): tau_fit, set from pilot seeds (above each method's pilot floor, never
+# from 0-9 itself); written after the reporting run -- see Progress_Log Key
+# Learning 14.
 # Pilot (seeds 100-104, steps=20000, lr=0.1): VDN floor mean=8.08e-17
 # (max=1.21e-16); QMIX floor mean=2.79e-4 (max=4.27e-4, min=1.19e-4).
 # VDN's threshold sits ~8 orders above its floor (plain machine precision on

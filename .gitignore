@@ -1,3 +1,11 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+.claude/
+CLAUDE.md
+game_project/docs/
+game_project/tasks/
+game_project/reports/
+game_project/Progress_Log.md
+game_project/Project_Structure.md
+game_project/decisions.md

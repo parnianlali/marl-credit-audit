@@ -30,7 +30,7 @@ from string import ascii_lowercase
 import numpy as np
 import torch
 
-from games.generator import sample_reward
+from games.generator import joint_argmax, sample_reward
 
 _WEIGHTS_TOL = 1e-12
 
@@ -62,12 +62,6 @@ non-negative, finite, and sum to 1.
 
 In our current setup (D3), these weights are uniform, so every joint
 action is trained equally.
-
-Full support is required by default because later credit extraction
-evaluates Q_tot for every joint action. A zero-weight action would
-therefore never be trained in full-batch mode.
-
-Returns a validated float64 copy.
 """
     w = np.asarray(w, dtype=np.float64)
     shape = (n_actions,) * n
@@ -110,6 +104,26 @@ Returns a validated float64 copy.
         )
 
     return w.copy()
+
+# this function: task 5 week 3
+def central_weights(payoff, alpha):
+    """D6's R2, idealised central weighting (WQMIX): weight 1 at the true joint
+    argmax a*, alpha at every other joint action, divided by
+    Z = 1 + alpha*(|A|^n - 1) so the weights sum to 1.
+    """
+    payoff = np.asarray(payoff, dtype=np.float64)
+    # `0 < alpha <= 1` is False for NaN, so NaN is rejected here too.
+    if not (0.0 < alpha <= 1.0):
+        raise ValueError("central_weights: need 0 < alpha <= 1, got %r" % (alpha,))
+
+    # create an array by payoff shpae and fill it with mount of specific alpha (uniform distribution)
+    w = np.full(payoff.shape, alpha, dtype=np.float64)
+    # alpha(weight) of the best joint action is equal to 1  
+    w[joint_argmax(payoff)] = 1.0 
+    # normalizing the weights     
+    Z = 1.0 + alpha * (payoff.size - 1)                 # = 1 + alpha(|A|^n - 1)
+    n, n_actions = payoff.ndim, payoff.shape[0]
+    return check_joint_weights(w / Z, n, n_actions)
 
 
 def joint_from_product(B):

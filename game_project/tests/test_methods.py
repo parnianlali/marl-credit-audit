@@ -28,14 +28,14 @@ import numpy as np
 import pytest
 import torch
 
-from eval.metrics import credit_error, fit_error, regret
-from games.generator import make_game
+from eval.metrics import credit_error, fit_error, normalized_regret, regret, spearman
+from games.generator import make_game, make_mono_game
 from ground_truth.baselines import fixed_action, uniform
 from ground_truth.enumerate import coalition_values
 from ground_truth.semivalues import banzhaf_weights, loo_weights, semivalue, shapley_weights
 from methods.extraction import extract_A, extract_B, extract_C, extract_D
 from methods.qmix import QMIX
-from methods.train import enumerate_joint_actions, joint_from_product, seed_to_int, train
+from methods.train import central_weights, enumerate_joint_actions, joint_from_product, seed_to_int, train
 from methods.vdn import VDN, vdn_lstsq_oracle
 
 # Reuse Week 1's asymmetric baseline and game-size grid instead of
@@ -173,10 +173,14 @@ def test_determinism(ModelClass, mode, sigma):
 # 4. VDN matches the closed-form lstsq oracle
 # --------------------------------------------------------------------------
 
+@pytest.mark.parametrize("regime", ["uniform", "central"])
 @pytest.mark.parametrize("lam", [0.0, 1.0, 2.0])
-def test_vdn_matches_lstsq(lam):
+def test_vdn_matches_lstsq(lam, regime):
     payoff = make_game(3, 3, lam=lam, seed=0)["payoff"]
-    weights = joint_from_product(uniform(3, 3))
+    if regime == "uniform":
+        weights = joint_from_product(uniform(3, 3))
+    else:
+        weights = central_weights(payoff, 0.01)  # D6's alpha
     _, history = _train(VDN, payoff, weights, STEPS_FIT, LR_FIT, seed=0)
     trained = history[-1]["q_tot_tensor"]
 
@@ -453,3 +457,124 @@ def test_lr_schedule_logged_matches_cosine_closed_form(ModelClass):
     assert logged_lrs[0] == pytest.approx(lr0)
     assert all(a >= b - 1e-12 for a, b in zip(logged_lrs, logged_lrs[1:]))
     assert logged_lrs[-1] == pytest.approx(0.0, abs=1e-12)
+
+
+# --------------------------------------------------------------------------
+# Week 3 Task 5: central_weights (D6's R2). Expected values hand-derived from
+# the definition: weight 1 at the argmax, alpha elsewhere, divided by
+# Z = 1 + alpha*(|A|^n - 1).
+# --------------------------------------------------------------------------
+
+# Asymmetric 2x2 payoff, argmax by inspection at (0, 1) (value 5).
+PAYOFF = np.array([[1.0, 5.0],
+                   [3.0, 2.0]])
+
+
+@pytest.mark.parametrize("alpha", [0.01, 0.3, 1.0])
+def test_sums_to_one(alpha):
+    assert central_weights(PAYOFF, alpha).sum() == pytest.approx(1.0, abs=1e-12)
+
+
+def test_ratio_to_argmax_is_one_over_alpha():
+    alpha = 0.25
+    w = central_weights(PAYOFF, alpha)
+    for a in np.ndindex(*PAYOFF.shape):
+        if a != (0, 1):
+            assert w[0, 1] / w[a] == pytest.approx(1.0 / alpha, rel=1e-12)
+
+
+def test_alpha_one_is_uniform():
+    w = central_weights(PAYOFF, 1.0)
+    np.testing.assert_allclose(w, np.full((2, 2), 0.25), atol=1e-15)
+
+
+def test_mass_at_hand_chosen_argmax():
+    # alpha = 0.5, 4 joint actions: Z = 1 + 0.5*3 = 2.5, so the argmax gets
+    # 1/2.5 = 0.4 and each of the other three gets 0.5/2.5 = 0.2.
+    w = central_weights(PAYOFF, 0.5)
+    expected = np.array([[0.2, 0.4],
+                         [0.2, 0.2]])
+    np.testing.assert_allclose(w, expected, atol=1e-15)
+    assert np.unravel_index(np.argmax(w), w.shape) == (0, 1)
+
+
+@pytest.mark.parametrize("alpha", [0.0, -0.1, 1.5, float("nan")])
+def test_invalid_alpha_raises(alpha):
+    with pytest.raises(ValueError):
+        central_weights(PAYOFF, alpha)
+
+
+# --------------------------------------------------------------------------
+# Week 3 Task 4: credit_error(scale=...), normalized_regret, spearman.
+# Expected values are from the spec table or derived on paper in the comments.
+# --------------------------------------------------------------------------
+
+# ---------- spearman ----------
+
+def test_spearman_perfect_agreement():
+    assert spearman([1, 2, 3], [1, 2, 3]) == pytest.approx(1.0, abs=1e-12)
+
+
+def test_spearman_perfect_reversal():
+    assert spearman([1, 2, 3], [3, 2, 1]) == pytest.approx(-1.0, abs=1e-12)
+
+
+def test_spearman_one_swap():
+    # ranks (1,2,3) vs (1,3,2): 1 - 6*sum(d^2)/(n(n^2-1)) = 1 - 6*2/24 = 0.5
+    assert spearman([1, 2, 3], [1, 3, 2]) == pytest.approx(0.5, abs=1e-12)
+
+
+def test_spearman_ties_use_average_ranks():
+    # x ranks (1.5, 1.5, 3), y ranks (1, 2, 3). Centered: x (-.5,-.5,1),
+    # y (-1,0,1). cov sum = 1.5, |x|^2 = 1.5, |y|^2 = 2 -> 1.5/sqrt(3) = sqrt(3)/2.
+    assert spearman([1, 1, 2], [1, 2, 3]) == pytest.approx(math.sqrt(3) / 2, abs=1e-12)
+
+
+def test_spearman_constant_input_is_nan():
+    assert math.isnan(spearman([1, 1, 1], [1, 2, 3]))
+    assert math.isnan(spearman([1, 2, 3], [5, 5, 5]))
+
+
+# ---------- normalized_regret ----------
+
+def test_normalized_regret_qtran_matrix():
+    # payoff.max() = 8, mean = -40/9, so denominator = 8 + 40/9 = 112/9.
+    # (1,1) has k = 0 agents on the target -> payoff 0 -> regret 8.
+    # 8 / (112/9) = 72/112 = 9/14.
+    payoff = make_mono_game(2, 3, penalty=12, high=8.0)["payoff"]
+    assert normalized_regret(payoff, (1, 1)) == pytest.approx(9 / 14, abs=1e-12)
+
+
+def test_normalized_regret_optimal_is_zero():
+    payoff = make_mono_game(2, 3, penalty=12, high=8.0)["payoff"]
+    assert normalized_regret(payoff, (0, 0)) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_normalized_regret_constant_payoff_raises():
+    with pytest.raises(ValueError):
+        normalized_regret(np.full((3, 3), 2.0), (0, 0))
+
+
+# ---------- credit_error scale ----------
+
+def test_credit_error_scaled_l2():
+    # diff = (3, 4) -> raw_l2 = 5; scale 2.5 -> 2.
+    out = credit_error([3.0, 4.0], [0.0, 0.0], scale=2.5)
+    assert out["scaled_l2"] == pytest.approx(2.0, abs=1e-12)
+    assert out["raw_l2"] == pytest.approx(5.0, abs=1e-12)
+
+
+def test_credit_error_without_scale_has_no_scaled_key_and_old_keys_unchanged():
+    out = credit_error([3.0, 4.0], [1.0, 1.0])
+    assert set(out) == {"normalized_l2", "raw_l2", "sup"}
+    # diff = (2, 3): raw = sqrt(13); |phi_true| = sqrt(2); sup = 3.
+    assert out["raw_l2"] == pytest.approx(math.sqrt(13), abs=1e-12)
+    assert out["normalized_l2"] == pytest.approx(math.sqrt(13 / 2), abs=1e-12)
+    assert out["sup"] == pytest.approx(3.0, abs=1e-12)
+
+
+def test_credit_error_scaled_is_finite_when_phi_true_is_zero():
+    # The reason D8 uses payoff.std(): normalized_l2 is NaN here, scaled is not.
+    out = credit_error([1.0, 0.0], [0.0, 0.0], scale=4.0)
+    assert math.isnan(out["normalized_l2"])
+    assert out["scaled_l2"] == pytest.approx(0.25, abs=1e-12)

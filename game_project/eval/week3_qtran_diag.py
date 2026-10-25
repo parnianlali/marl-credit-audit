@@ -38,4 +38,8 @@ for name, w in regimes.items():
         n_found += r == 0
         print("%4d  %-6s  %6.2f  %.3e" % (s, tuple(int(x) for x in g), r,
                                           hist[-1]["train_loss"]))
+        qt = np.asarray(hist[-1]["q_tot_tensor"])
+        qs = hist[-1]["q_tables"]
+        print("      Q1=%s  Q2=%s" % (np.round(qs[0], 2), np.round(qs[1], 2)))
+        print("      Qjt(0,0)=%.2f  Qjt=%s" % (qt[0, 0], np.round(qt, 2).tolist()))
     print("optimal (0,0) found in %d/10 inits" % n_found)

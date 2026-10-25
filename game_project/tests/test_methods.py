@@ -578,3 +578,36 @@ def test_credit_error_scaled_is_finite_when_phi_true_is_zero():
     out = credit_error([1.0, 0.0], [0.0, 0.0], scale=4.0)
     assert math.isnan(out["normalized_l2"])
     assert out["scaled_l2"] == pytest.approx(0.25, abs=1e-12)
+
+
+# --------------------------------------------------------------------------
+# Week 3 Task 6a: VDN on the QTRAN matrix = additive projection (hand-derived)
+# --------------------------------------------------------------------------
+
+def test_vdn_qtran_matrix_additive_projection():
+    # Payoff: 8 at (0,0), -12 at (0,j) and (j,0) for j in {1,2}, 0 at (i,j>=1).
+    # Grand mean = (8 - 4*12)/9 = -40/9. Row (= column) means: row 0 is
+    # (8-24)/3 = -16/3 and rows 1,2 are (-12+0+0)/3 = -4, so the effects are
+    # -16/3+40/9 = -8/9 and -4+40/9 = +4/9. Additive fit = mean + row + col:
+    #   (0,0): -40/9 - 16/9 = -56/9
+    #   (0,j): -40/9 - 8/9 + 4/9 = -44/9
+    #   (i,j): -40/9 + 8/9 = -32/9
+    payoff = make_mono_game(2, 3, penalty=12, high=8.0)["payoff"]
+    expected = np.full((3, 3), -32 / 9)
+    expected[0, 0] = -56 / 9
+    expected[0, 1:] = -44 / 9
+    expected[1:, 0] = -44 / 9
+
+    weights = joint_from_product(uniform(2, 3))
+    model, history = _train(VDN, payoff, weights, STEPS_FIT, LR_FIT, seed=0)
+    trained = history[-1]["q_tot_tensor"]
+    np.testing.assert_allclose(trained, expected, atol=1e-6)
+
+    # The oracle must agree with the hand values at 1e-12.
+    _, oracle_tensor = vdn_lstsq_oracle(payoff, weights)
+    np.testing.assert_allclose(oracle_tensor, expected, atol=1e-12)
+
+    # Regret is asserted, not the action: the four (i,j>=1) cells tie at
+    # -32/9, so any of them is greedy, and all have payoff 0 -> regret 8.
+    greedy = history[-1]["greedy_action"]
+    assert regret(payoff, greedy) == pytest.approx(8.0, abs=1e-12)

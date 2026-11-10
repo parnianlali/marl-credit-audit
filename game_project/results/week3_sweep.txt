@@ -1,0 +1,111 @@
+sweep: 840 training runs
+  20/840 runs, 591 s
+  40/840 runs, 1171 s
+  60/840 runs, 1736 s
+  80/840 runs, 2299 s
+  100/840 runs, 2866 s
+  120/840 runs, 3442 s
+  140/840 runs, 4010 s
+  160/840 runs, 4579 s
+  180/840 runs, 5141 s
+  200/840 runs, 5705 s
+  220/840 runs, 6268 s
+  240/840 runs, 6837 s
+  260/840 runs, 7409 s
+  280/840 runs, 7978 s
+  300/840 runs, 8542 s
+  320/840 runs, 9102 s
+  340/840 runs, 9691 s
+  360/840 runs, 10270 s
+  380/840 runs, 10845 s
+  400/840 runs, 11409 s
+  420/840 runs, 11981 s
+  440/840 runs, 12547 s
+  460/840 runs, 13110 s
+  480/840 runs, 13673 s
+  500/840 runs, 14249 s
+  520/840 runs, 14864 s
+  540/840 runs, 15447 s
+  560/840 runs, 16014 s
+  580/840 runs, 16581 s
+  600/840 runs, 17144 s
+  620/840 runs, 17714 s
+  640/840 runs, 18287 s
+  660/840 runs, 18856 s
+  680/840 runs, 19421 s
+  700/840 runs, 19973 s
+  720/840 runs, 20081 s
+  740/840 runs, 20189 s
+  760/840 runs, 20298 s
+  780/840 runs, 20405 s
+  800/840 runs, 20513 s
+  820/840 runs, 20620 s
+  840/840 runs, 20721 s
+wrote /home/parnian/game/game_project/results/week3_sweep.csv
+wrote /home/parnian/game/game_project/results/week3_sweep_1_central.png
+wrote /home/parnian/game/game_project/results/week3_sweep_2_vdn_targets.png
+wrote /home/parnian/game/game_project/results/week3_sweep_3_qmix_extractions.png
+
+=== Gate: lambda = 0, D2 per method per regime ===
+  VDN  R1  fit_rmse mean=3.656e-17 +/- 1.783e-17  tau_fit=1e-08 -> PASS   F3 all runs: True
+  VDN  R2  fit_rmse mean=7.993e-17 +/- 3.399e-17  tau_fit=1e-08 -> PASS   F3 all runs: True
+  QMIX R1  fit_rmse mean=3.785e-06 +/- 1.605e-06  tau_fit=1e-03 -> PASS   F3 all runs: True
+  QMIX R2  fit_rmse mean=1.708e-05 +/- 5.823e-06  tau_fit=1e-03 -> PASS   F3 all runs: True
+  D2 gate: PASS
+
+=== D9 decoupling: lambdas where it holds (regret<0.05 and credit>0.10, both baselines) ===
+  VDN R1   lam: nregret mean+CI (fixed) | credit mean-CI (fixed, uniform)
+    0      reg+ci=0.000  credit-ci fixed=0.000 uniform=0.000  
+    0.125  reg+ci=0.072  credit-ci fixed=0.093 uniform=0.056  
+    0.25   reg+ci=0.173  credit-ci fixed=0.164 uniform=0.091  
+    0.5    reg+ci=0.412  credit-ci fixed=0.295 uniform=0.196  
+    1      reg+ci=0.770  credit-ci fixed=0.476 uniform=0.381  
+    2      reg+ci=1.075  credit-ci fixed=0.616 uniform=0.625  
+    4      reg+ci=1.264  credit-ci fixed=0.634 uniform=0.854  
+    -> lambdas where D9 holds: none
+  VDN R2   lam: nregret mean+CI (fixed) | credit mean-CI (fixed, uniform)
+    0      reg+ci=0.000  credit-ci fixed=0.000 uniform=0.000  
+    0.125  reg+ci=0.036  credit-ci fixed=0.086 uniform=0.035  
+    0.25   reg+ci=0.120  credit-ci fixed=0.152 uniform=0.059  
+    0.5    reg+ci=0.429  credit-ci fixed=0.266 uniform=0.173  
+    1      reg+ci=0.441  credit-ci fixed=0.329 uniform=0.198  
+    2      reg+ci=0.420  credit-ci fixed=0.272 uniform=0.294  
+    4      reg+ci=0.000  credit-ci fixed=0.301 uniform=0.277  HOLDS
+    -> lambdas where D9 holds: [4.0]
+  QMIX R1   lam: nregret mean+CI (fixed) | credit mean-CI (fixed, uniform)
+    0      reg+ci=0.000  credit-ci fixed=0.000 uniform=0.000  
+    0.125  reg+ci=0.036  credit-ci fixed=0.060 uniform=0.021  
+    0.25   reg+ci=0.120  credit-ci fixed=0.107 uniform=0.035  
+    0.5    reg+ci=0.341  credit-ci fixed=0.210 uniform=0.082  
+    1      reg+ci=0.778  credit-ci fixed=0.364 uniform=0.085  
+    2      reg+ci=0.955  credit-ci fixed=0.595 uniform=0.155  
+    4      reg+ci=0.702  credit-ci fixed=0.733 uniform=0.178  
+    -> lambdas where D9 holds: none
+  QMIX R2   lam: nregret mean+CI (fixed) | credit mean-CI (fixed, uniform)
+    0      reg+ci=0.000  credit-ci fixed=0.000 uniform=0.000  
+    0.125  reg+ci=0.036  credit-ci fixed=0.053 uniform=0.012  
+    0.25   reg+ci=0.120  credit-ci fixed=0.091 uniform=0.021  
+    0.5    reg+ci=0.373  credit-ci fixed=0.176 uniform=0.085  
+    1      reg+ci=0.038  credit-ci fixed=0.329 uniform=0.102  HOLDS
+    2      reg+ci=0.168  credit-ci fixed=0.356 uniform=0.131  
+    4      reg+ci=0.000  credit-ci fixed=0.362 uniform=0.124  HOLDS
+    -> lambdas where D9 holds: [1.0, 4.0]
+  Secondary, QMIX lowest-loss init only:
+    QMIX R1 -> none
+    QMIX R2 -> [2.0, 4.0]
+
+=== D11 flag: relative loss change over the last 10% of steps (QMIX, per run) ===
+  R1 lam=0      median=1.00e+00 max=1.00e+00  runs>1%: 50/50
+  R1 lam=0.125  median=3.60e-04 max=5.64e-03  runs>1%: 0/50
+  R1 lam=0.25   median=3.10e-04 max=3.80e-03  runs>1%: 0/50
+  R1 lam=0.5    median=1.56e-04 max=2.11e-03  runs>1%: 0/50
+  R1 lam=1      median=1.42e-04 max=7.19e-04  runs>1%: 0/50
+  R1 lam=2      median=6.49e-05 max=3.11e-04  runs>1%: 0/50
+  R1 lam=4      median=1.36e-05 max=8.44e-05  runs>1%: 0/50
+  R2 lam=0      median=9.98e-01 max=1.00e+00  runs>1%: 50/50
+  R2 lam=0.125  median=9.53e-04 max=5.46e-03  runs>1%: 0/50
+  R2 lam=0.25   median=4.25e-04 max=4.77e-03  runs>1%: 0/50
+  R2 lam=0.5    median=5.96e-04 max=3.95e-03  runs>1%: 0/50
+  R2 lam=1      median=2.91e-04 max=3.80e-03  runs>1%: 0/50
+  R2 lam=2      median=1.07e-04 max=1.35e-03  runs>1%: 0/50
+  R2 lam=4      median=1.69e-05 max=2.10e-04  runs>1%: 0/50
